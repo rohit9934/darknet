@@ -32,7 +32,155 @@ def cvDrawBoxes(detections, img):
                     (pt1[0], pt1[1] - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5,
                     [0, 255, 0], 2)
     return img
+def trackMultipleObjects(detections):
+	rectangleColor = (0, 255, 0)
+	frameCounter = 0
+	currentCarID = 0
+	fps = 0
+	
+	carTracker = {}
+	carNumbers = {}
+	carLocation1 = {}
+	carLocation2 = {}
+	speed = [None] * 1000
+	
+	# Write output to video file
 
+
+	while True:
+		start_time = time.time()
+		rc, image = video.read()
+		if type(image) == type(None):
+			break
+		
+		image = cv2.resize(image, (WIDTH, HEIGHT))
+		resultImage = image.copy()
+		
+		
+		frameCounter = frameCounter + 1
+		
+		carIDtoDelete = []
+
+		for carID in carTracker.keys():
+			trackingQuality = carTracker[carID].update(image)
+			
+			if trackingQuality < 7:
+				carIDtoDelete.append(carID)
+				
+		for carID in carIDtoDelete:
+			print ('Removing carID ' + str(carID) + ' from list of trackers.')
+			print ('Removing carID ' + str(carID) + ' previous location.')
+			print ('Removing carID ' + str(carID) + ' current location.')
+			carTracker.pop(carID, None)
+			carLocation1.pop(carID, None)
+			carLocation2.pop(carID, None)
+		
+		if not (frameCounter % 10):
+			gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+			cars = carCascade.detectMultiScale(gray, 1.1, 13, 18, (24, 24))
+			
+			for detection in detections:
+                x, y, w, h = detection[2][0],\
+                            detection[2][1],\
+                            detection[2][2],\
+                            detection[2][3]
+				x_bar = x + 0.5 * w
+				y_bar = y + 0.5 * h
+				
+				matchCarID = None
+			
+				for carID in carTracker.keys():
+					trackedPosition = carTracker[carID].get_position()
+					
+					t_x = int(trackedPosition.left())
+					t_y = int(trackedPosition.top())
+					t_w = int(trackedPosition.width())
+					t_h = int(trackedPosition.height())
+					
+					t_x_bar = t_x + 0.5 * t_w
+					t_y_bar = t_y + 0.5 * t_h
+				
+					if ((t_x <= x_bar <= (t_x + t_w)) and (t_y <= y_bar <= (t_y + t_h)) and (x <= t_x_bar <= (x + w)) and (y <= t_y_bar <= (y + h))):
+						matchCarID = carID
+				
+				if matchCarID is None:
+					print ('Creating new tracker ' + str(currentCarID))
+					
+					tracker = dlib.correlation_tracker()
+					tracker.start_track(image, dlib.rectangle(x, y, x + w, y + h))
+					
+					carTracker[currentCarID] = tracker
+					carLocation1[currentCarID] = [x, y, w, h]
+
+					currentCarID = currentCarID + 1
+		
+		#cv2.line(resultImage,(0,480),(1280,480),(255,0,0),5)
+
+
+		for carID in carTracker.keys():
+			trackedPosition = carTracker[carID].get_position()
+					
+			t_x = int(trackedPosition.left())
+			t_y = int(trackedPosition.top())
+			t_w = int(trackedPosition.width())
+			t_h = int(trackedPosition.height())
+			# the code commented below draws the rectangele over Cars....
+			# cv2.rectangle(resultImage, (t_x, t_y), (t_x + t_w, t_y + t_h), rectangleColor, 0)
+			
+			# speed estimation
+			carLocation2[carID] = [t_x, t_y, t_w, t_h]
+		
+		end_time = time.time()
+		
+		if not (end_time == start_time):
+			fps = 1.0/(end_time - start_time)
+		
+		#cv2.putText(resultImage, 'FPS: ' + str(int(fps)), (620, 30),cv2.FONT_HERSHEY_SIMPLEX, 0.75, (0, 0, 255), 2)
+
+
+		for i in carLocation1.keys():	
+			if frameCounter % 1 == 0:
+				[x1, y1, w1, h1] = carLocation1[i]
+				[x2, y2, w2, h2] = carLocation2[i]
+		
+				# print 'previous location: ' + str(carLocation1[i]) + ', current location: ' + str(carLocation2[i])
+				carLocation1[i] = [x2, y2, w2, h2]
+		
+				# print 'new previous location: ' + str(carLocation1[i])
+				if [x1, y1, w1, h1] != [x2, y2, w2, h2]:
+					if (speed[i] == None or speed[i] == 0) and y1 >= 275 and y1 <= 285:
+						speed[i] = estimateSpeed([x1, y1, w1, h1], [x2, y2, w2, h2])
+
+					#if y1 > 275 and y1 < 285:
+					if speed[i] != None and y1 >= 180:
+						cv2.putText(resultImage, str(int(speed[i])) + " km/hr", (int(x1 + w1/2), int(y1-5)),cv2.FONT_HERSHEY_SIMPLEX, 0.75, (255, 255, 255), 2)
+					
+					#print ('CarID ' + str(i) + ' Location1: ' + str(carLocation1[i]) + ' Location2: ' + str(carLocation2[i]) + ' speed is ' + str("%.2f" % round(speed[i], 0)) + ' km/h.\n')
+
+		cv2.waitKey(2)
+		cap2=cv2.imshow('result', resultImage)
+# 		while(1):
+# 			ret1,frmae1=cap1.read()
+# 			ret2,frame2=cap2.read()
+# 			if ret1==True:
+# 				both = np.concatenate((frmae1, frame2), axis=1)
+# 				cv2.imshow(" ", both)
+# 				out.write(frame1)
+# 				if cv2.waitKey(1) & 0xFF == ord('q'):
+# 					break
+# 			else:
+# 				break
+
+
+# # cap1.release()
+# # out.release()
+# cv2.waitKey(0)
+# cv2.destroyAllWindows()
+
+# 		# Write the frame into the file 'output.avi'
+# 		#out.write(resultImage)
+
+  
 
 netMain = None
 metaMain = None
