@@ -80,10 +80,10 @@ def trackMultipleObjects(detections):
 			cars = carCascade.detectMultiScale(gray, 1.1, 13, 18, (24, 24))
 			
 			for detection in detections:
-                x, y, w, h = detection[2][0],\
-                            detection[2][1],\
-                            detection[2][2],\
-                            detection[2][3]
+                		x, y, w, h = detection[2][0],\
+                            	detection[2][1],\
+                            	detection[2][2],\
+                            	detection[2][3]
 				x_bar = x + 0.5 * w
 				y_bar = y + 0.5 * h
 				
